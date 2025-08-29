@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tómbola del Impostor</title>
+  <style>
+    :root { --primary: #2d6cdf; --success:#2ecc71; --danger:#e74c3c; --bg:#0f172a; --card:#111827; --muted:#94a3b8; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; background:linear-gradient(180deg,#0b1020,#0f172a); color:#e5e7eb; min-height:100vh;}
+    .container{max-width:720px;margin:0 auto;padding:24px}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.25); padding:22px}
+    h1{margin:0 0 12px;font-weight:800;font-size:28px}
+    p.sub{margin:0 0 20px;color:var(--muted)}
+    .controls{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+    label{font-size:14px;color:var(--muted)}
+    input[type=number]{width:100%;padding:12px 14px;background:#0b1220;border:1px solid #243043;border-radius:12px;color:#e5e7eb;font-size:16px}
+    button{border:0;border-radius:12px;padding:12px 16px;font-weight:700;font-size:16px;cursor:pointer}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed}
+    .players{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+    @media(min-width:520px){.players{grid-template-columns:repeat(3,1fr)}}
+    .player-btn{background:#1f2937;color:#e5e7eb;padding:14px 10px;border:1px solid #2b364a;border-radius:14px}
+    .player-btn:disabled{opacity:.55}
+    .footer{margin-top:14px;color:var(--muted);font-size:12px;text-align:center}
+
+    /* Modal / Overlay */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;padding:22px;z-index:50}
+    .modal{background:#0b1220;border:1px solid #243043;border-radius:18px;max-width:520px;width:100%;padding:24px;text-align:center}
+    .modal h2{margin:0 0 8px}
+    .tag{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:800;margin-top:4px}
+    .tag-green{background:rgba(46, 204, 113, .15);color:#a6f3c9;border:1px solid rgba(46, 204, 113, .35)}
+    .tag-red{background:rgba(231, 76, 60, .15);color:#ffc0b9;border:1px solid rgba(231, 76, 60, .35)}
+    .modal .hint{margin-top:10px;color:#93a2b9;font-size:13px}
+    .modal .actions{margin-top:16px;display:flex;gap:10px;justify-content:center}
+    .btn{padding:12px 16px;border-radius:12px;border:1px solid #2b364a;background:#111827;color:#e5e7eb}
+    .btn:hover{filter:brightness(1.1)}
+    .btn-danger{background:var(--danger);border-color:#b93d30}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>🎲 Tómbola del Impostor</h1>
+      <p class="sub">Asigna <strong>N-1</strong> papeles con el <em>mismo jugador</em> y <strong>1</strong> papel de <strong>IMPOSTOR</strong>. Todo al azar y privado.</p>
+
+      <div class="controls">
+        <div>
+          <label for="jugadores">Número de jugadores (3–30)</label>
+          <input id="jugadores" type="number" min="3" max="30" value="6" />
+        </div>
+        <button id="btn-generar" class="btn-primary">Generar tómbola</button>
+      </div>
+
+      <div id="info-ronda" class="footer hidden">Ronda lista. Cada jugador debe mirar su papel de forma privada.</div>
+
+      <div id="players" class="players"></div>
+
+      <div class="footer">Privacidad: el rol solo se muestra en una pantalla privada y no queda escrito en la página.</div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="overlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Tu papel</h2>
+      <div id="roleTag" class="tag"></div>
+      <div id="modalHint" class="hint">Este mensaje se ocultará automáticamente.</div>
+      <div class="actions">
+        <button id="btn-ocultar" class="btn">Ocultar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Lista interna de jugadores famosos (se elige 1 al azar por ronda)
+    const JUGADORES = [
+      "Messi","Cristiano Ronaldo","Neymar","Mbappé","Haaland","Vinícius Jr.","Bellingham","De Bruyne","Modrić","Griezmann",
+      "Lewandowski","Salah","Kane","Suárez","Di María","Antoine Griezmann","Pedri","Gavi","Alexis Sánchez","Arturo Vidal"
+    ];
+
+    const playersDiv = document.getElementById('players');
+    const generarBtn = document.getElementById('btn-generar');
+    const infoRonda = document.getElementById('info-ronda');
+
+    const overlay = document.getElementById('overlay');
+    const roleTag = document.getElementById('roleTag');
+    const btnOcultar = document.getElementById('btn-ocultar');
+    const modalHint = document.getElementById('modalHint');
+
+    let roles = []; // roles barajados para la ronda
+    let visto = []; // quién ya vio su papel
+    let timeoutId = null;
+
+    function nombreJugadorAzar(){
+      return JUGADORES[Math.floor(Math.random() * JUGADORES.length)];
+    }
+
+    function fisherYatesShuffle(arr){
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function generarTombola(){
+      const n = parseInt(document.getElementById('jugadores').value, 10);
+      if(isNaN(n) || n < 3 || n > 30){
+        alert('Ingresa un número entre 3 y 30');
+        return;
+      }
+
+      const jugadorElegido = nombreJugadorAzar(); // PRIVADO: no se muestra en la página
+
+      roles = new Array(n - 1).fill(jugadorElegido).concat(['IMPOSTOR']);
+      fisherYatesShuffle(roles); // baraja justa (evita sesgos y posiciones fijas)
+
+      visto = new Array(n).fill(false);
+
+      // Render de botones de jugadores
+      playersDiv.innerHTML = '';
+      for(let i=0;i<n;i++){
+        const b = document.createElement('button');
+        b.className = 'player-btn';
+        b.textContent = `Jugador ${i+1}`;
+        b.setAttribute('aria-label', `Ver papel del Jugador ${i+1}`);
+        b.addEventListener('click', () => mostrarPapel(i, b));
+        playersDiv.appendChild(b);
+      }
+
+      infoRonda.classList.remove('hidden');
+    }
+
+    function mostrarOverlay(texto, esImpostor){
+      roleTag.textContent = texto;
+      roleTag.className = 'tag ' + (esImpostor ? 'tag-red' : 'tag-green');
+      overlay.style.display = 'flex';
+
+      // Auto-ocultar en 4 segundos por privacidad
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(ocultarOverlay, 4000);
+    }
+
+    function ocultarOverlay(){
+      overlay.style.display = 'none';
+    }
+
+    function mostrarPapel(idx, btn){
+      if(visto[idx]){ return; }
+      const miRol = roles[idx];
+      const esImpostor = miRol === 'IMPOSTOR';
+      // Mostrar SOLO en modal (no se escribe en la página)
+      mostrarOverlay(esImpostor ? 'IMPOSTOR' : miRol, esImpostor);
+      visto[idx] = true;
+      btn.textContent = `Jugador ${idx+1} ✓`;
+      btn.disabled = true;
+
+      // Si todos ya vieron, ofrecer reiniciar
+      if(visto.every(Boolean)){
+        const end = document.createElement('div');
+        end.style.marginTop = '12px';
+        const again = document.createElement('button');
+        again.textContent = 'Nueva ronda';
+        again.className = 'btn';
+        again.addEventListener('click', generarTombola);
+        end.appendChild(again);
+        playersDiv.appendChild(end);
+      }
+    }
+
+    generarBtn.addEventListener('click', generarTombola);
+    btnOcultar.addEventListener('click', ocultarOverlay);
+
+    // Atajos de accesibilidad/privacidad
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape' && overlay.style.display === 'flex') ocultarOverlay();
+    });
+  </script>
+</body>
+</html>
