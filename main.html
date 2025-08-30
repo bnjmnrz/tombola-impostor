@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tómbola del Impostor</title>
+  <link rel="stylesheet" href="main.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>🎲 Tómbola del Impostor</h1>
+      <p class="sub">Asigna <strong>1</strong> papel de <strong>IMPOSTOR</strong> y resto de papeles con el <em>jugador</em>. Todo al azar y privado.</p>
+
+      <div class="controls">
+        <div>
+          <label for="jugadores">Número de jugadores (3–30)</label>
+          <input id="jugadores" type="number" min="3" max="30" value="6" />
+        </div>
+        <button id="btn-generar" class="btn-primary">Generar tómbola</button>
+      </div>
+
+      <div id="info-ronda" class="footer hidden">Ronda lista. Cada jugador debe mirar su papel de forma privada.</div>
+
+      <div id="players" class="players"></div>
+
+      <div class="footer">Privacidad: el rol solo se muestra en una pantalla privada y no queda escrito en la página.</div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="overlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Tu papel</h2>
+      <div id="roleTag" class="tag"></div>
+      <div id="modalHint" class="hint">Este mensaje se ocultará automáticamente.</div>
+      <div class="actions">
+        <button id="btn-ocultar" class="btn">Ocultar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
